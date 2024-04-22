@@ -1,0 +1,6 @@
+# Files created by tools
+.idea
+.DS_Store
+
+# Things I don't want to commit
+env.sh
