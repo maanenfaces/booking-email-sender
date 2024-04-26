@@ -42,7 +42,7 @@ def load_recipients_from_csv_file(filename):
         return [row for row in reader]
 
 
-def send_email(email_tpl, recipients, opt_send=False):
+def send_email(email_tpl, recipients, opt_email_to=None, opt_send=False):
     if opt_send:
         server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT)
         server.login(SMTP_USER, SMTP_PASSWORD)
@@ -55,17 +55,16 @@ def send_email(email_tpl, recipients, opt_send=False):
 
         attrs = email_tpl["metadata"] | recipient
         contact_email = recipient["contact_email"]
+        email_title = email_tpl["metadata"]["email_title"].format(**attrs)
+        email_to = contact_email if not opt_email_to else opt_email_to
 
         # Main mail content
-        message['Subject'] = Header(
-            email_tpl["metadata"]["email_title"].format(**attrs),
-            'utf-8'
-        )
+        message['Subject'] = Header(email_title,'utf-8')
         message['From'] = formataddr((
             str(Header(sender_name, 'utf-8')),
             sender_email
         ))
-        message['To'] = contact_email
+        message['To'] = email_to
 
         # Reply To could be different
         message.add_header('reply-to', sender_email)
@@ -76,11 +75,13 @@ def send_email(email_tpl, recipients, opt_send=False):
         text = email_tpl["text"].format(**attrs)
         message.attach(MIMEText(text, 'plain'))
 
-        logging.info(f"recipient_email = {contact_email}")
+        logging.info(f"- recipient_email = {contact_email}")
+        logging.info(f"  email_title = {email_title}")
+        logging.info(f"  email_to = {email_to}")
         logging.debug(message.as_string())
 
         if opt_send:
-            server.sendmail(sender_email,[contact_email], message.as_string())
+            server.sendmail(sender_email,[email_to], message.as_string())
 
     if opt_send:
         server.quit()
@@ -96,6 +97,12 @@ if __name__ == "__main__":
         "--csv",
         default=f"{script_dir}/recipients.csv",
         help="Path to CSV files containing the email addresses",
+        type=str,
+    )
+    parser.add_argument(
+        "--email-to",
+        default=None,
+        help="Override recipients emails (useful for testing)",
         type=str,
     )
     parser.add_argument(
@@ -124,6 +131,7 @@ if __name__ == "__main__":
         logging.debug("SMTP_PASSWORD = None")
 
     logging.info(f"csv = {args.csv}")
+    logging.info(f"email_to = {args.email_to}")
     logging.info(f"send = {args.send_flag}")
     logging.info(f"template = {args.template}")
 
@@ -144,5 +152,6 @@ if __name__ == "__main__":
     send_email(
         load_email_template_dir(template_dir),
         load_recipients_from_csv_file(args.csv),
-        args.send_flag
+        opt_email_to=args.email_to,
+        opt_send=args.send_flag
     )
